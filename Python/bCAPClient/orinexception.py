@@ -65,10 +65,10 @@ class HResult:
   S_EXECUTING = 2304
   E_INVALIDPACKET = -2147418112
 
-  def succeeded(hr):
+  def succeeded(self,hr):
     return hr >= 0
 
-  def failed(hr):
+  def failed(self,hr):
     return hr < 0
 
 class ORiNException(Exception):

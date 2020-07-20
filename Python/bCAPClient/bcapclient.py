@@ -23,6 +23,7 @@ THE SOFTWARE.
 '''
 
 # -*- coding:utf-8 -*-
+import sys
 import select
 import socket
 import struct
@@ -41,11 +42,11 @@ class BCAPClient:
 
   def datetime2vntdate(date):
     return date.timestamp() \
-             / BCAPClient._SEC_ONEDAY + BCAPClient._TIME_DIFFERENCE
+             / self._SEC_ONEDAY + self._TIME_DIFFERENCE
 
   def vntdate2datetime(date):
     return datetime.fromtimestamp( \
-             (date - BCAPClient._TIME_DIFFERENCE) * BCAPClient._SEC_ONEDAY)
+             (date - self._TIME_DIFFERENCE) * self._SEC_ONEDAY)
 
   _DICT_TYPE2VT  = {
     int        :(VarType.VT_I4  , "i"   , False),
@@ -540,7 +541,7 @@ class BCAPClient:
       else:
         self._serial += 1
 
-      if HResult.failed(hresult):
+      if HResult().failed(hresult):
         raise ORiNException(hresult)
 
     if len(retvals) == 0:
@@ -557,7 +558,7 @@ class BCAPClient:
 
   def _serialize(self, serial, version, funcid, args):
     format = "<bIHhiH"
-    packet_data = [BCAPClient._BCAP_SOH, 0, serial, version, funcid, len(args)]
+    packet_data = [self._BCAP_SOH, 0, serial, version, funcid, len(args)]
 
     packed_args = self._serialize_args(args, True)
 
@@ -565,7 +566,7 @@ class BCAPClient:
     packet_data.append(packed_args)
 
     format += "b"
-    packet_data.append(BCAPClient._BCAP_EOT)
+    packet_data.append(self._BCAP_EOT)
 
     buf = struct.pack(format, *packet_data)
     buf = buf.replace(b'\0\0\0\0', struct.pack("<I", len(buf)), 1)
@@ -623,14 +624,14 @@ class BCAPClient:
           packet_data += [VarType.VT_VARIANT | VarType.VT_ARRAY, len_arg, packed_args]        
 
         else:
-          if type_o0 in BCAPClient._DICT_TYPE2VT:
-            (vt, fmt, is_ctype) = BCAPClient._DICT_TYPE2VT[type_o0]
+          if type_o0 in self._DICT_TYPE2VT:
+            (vt, fmt, is_ctype) = self._DICT_TYPE2VT[type_o0]
 
             if vt == VarType.VT_DATE:
               format += fmt * len_arg
               packet_data += [vt | VarType.VT_ARRAY, len_arg]
               for o in arg:
-                packet_data.append(BCAPClient.datetime2vntdate(o))
+                packet_data.append(self.datetime2vntdate(o))
 
             elif vt == VarType.VT_BSTR:
               packet_data += [vt | VarType.VT_ARRAY, len_arg]
@@ -662,21 +663,21 @@ class BCAPClient:
                 packet_data += arg
 
           else:
-            raise ORiNException(HResult.E_CAO_VARIANT_TYPE_NOSUPPORT)
+            raise ORiNException(HResult().E_CAO_VARIANT_TYPE_NOSUPPORT)
 
-    elif isinstance(arg, (bytes, bytearray)):
+    elif isinstance(arg, (bytes, bytearray)) and sys.version_info>=(3,0):
       len_arg = len(arg)
       format += "%ds" % len_arg
       packet_data += [VarType.VT_ARRAY | VarType.VT_UI1, len_arg, arg]
 
     else:
       type_arg = type(arg)
-      if type_arg in BCAPClient._DICT_TYPE2VT:
-        (vt, fmt, is_ctype) = BCAPClient._DICT_TYPE2VT[type_arg]
+      if type_arg in self._DICT_TYPE2VT:
+        (vt, fmt, is_ctype) = self._DICT_TYPE2VT[type_arg]
 
         if vt == VarType.VT_DATE:
           format += fmt
-          date_tmp = BCAPClient.datetime2vntdate(arg)
+          date_tmp = self.datetime2vntdate(arg)
           packet_data += [vt, 1, date_tmp]
 
         elif vt == VarType.VT_BSTR:
@@ -703,7 +704,7 @@ class BCAPClient:
             packet_data += [vt, 1, arg]
 
       else:
-        raise ORiNException(HResult.E_CAO_VARIANT_TYPE_NOSUPPORT)
+        raise ORiNException(HResult().E_CAO_VARIANT_TYPE_NOSUPPORT)
 
     return struct.pack(format, *packet_data)
 
@@ -723,7 +724,7 @@ class BCAPClient:
 
       (serial, version, hresult, retvals) = self._deserialize(buf_all)
 
-      if (self._serial == serial) and (hresult != HResult.S_EXECUTING):
+      if (self._serial == serial) and (hresult != HResult().S_EXECUTING):
         break
 
     return (serial, version, hresult, retvals)
@@ -735,7 +736,7 @@ class BCAPClient:
         [self._sock], [], [], self._timeout)
 
       if len(reads) == 0:
-        raise ORiNException(HResult.E_TIMEOUT)
+        raise ORiNException(HResult().E_TIMEOUT)
 
       buf_recv = b''.join([buf_recv,
         self._sock.recv(len_recv)])
@@ -750,8 +751,8 @@ class BCAPClient:
     (soh, len_buf, serial, version, hresult, len_args, buf_args, eot) \
       = struct.unpack(format, buf)
 
-    if (soh != BCAPClient._BCAP_SOH) or (eot != BCAPClient._BCAP_EOT):
-      raise ORiNException(HResult.E_INVALIDPACKET)
+    if (soh != self._BCAP_SOH) or (eot != self._BCAP_EOT):
+      raise ORiNException(HResult().E_INVALIDPACKET)
 
     (retvals, buf_args) = self._deserialize_args(buf_args, len_args, True)
 
@@ -783,8 +784,8 @@ class BCAPClient:
         format = "<%ds%ds" % (len_arg, len(buf) - len_arg)
         (retval, buf) = struct.unpack(format, buf)
 
-      elif vt in BCAPClient._DICT_VT2TYPE:
-        (fmt, len_val) = BCAPClient._DICT_VT2TYPE[vt]
+      elif vt in self._DICT_VT2TYPE:
+        (fmt, len_val) = self._DICT_VT2TYPE[vt]
 
         if vt == VarType.VT_BSTR:
           retval = []
@@ -803,20 +804,20 @@ class BCAPClient:
 
           if vt == VarType.VT_DATE:
             for i in range(len(retval)):
-              retval[i] = BCAPClient.vntdate2datetime(retval[i])
+              retval[i] = self.vntdate2datetime(retval[i])
 
           elif vt == VarType.VT_BOOL:
             for i in range(len(retval)):
               retval[i] = (retval[i] != 0)
 
       else:
-        raise ORiNException(HResult.E_CAO_VARIANT_TYPE_NOSUPPORT)
+        raise ORiNException(HResult().E_CAO_VARIANT_TYPE_NOSUPPORT)
 
     else:
       if vt in [ VarType.VT_EMPTY, VarType.VT_NULL ]:
         pass
-      elif vt in BCAPClient._DICT_VT2TYPE:
-        (fmt, len_val) = BCAPClient._DICT_VT2TYPE[vt]
+      elif vt in self._DICT_VT2TYPE:
+        (fmt, len_val) = self._DICT_VT2TYPE[vt]
         
         if vt == VarType.VT_BSTR:
           format = "<I%ds" % (len(buf) - 4)
@@ -830,12 +831,12 @@ class BCAPClient:
           (retval, buf) = struct.unpack(format, buf)
 
           if vt == VarType.VT_DATE:
-            retval = BCAPClient.vntdate2datetime(retval)
+            retval = self.vntdate2datetime(retval)
 
           elif vt == VarType.VT_BOOL:
             retval = (retval != 0)
 
       else:
-        raise ORiNException(HResult.E_CAO_VARIANT_TYPE_NOSUPPORT)
+        raise ORiNException(HResult().E_CAO_VARIANT_TYPE_NOSUPPORT)
 
     return (retval, buf)
